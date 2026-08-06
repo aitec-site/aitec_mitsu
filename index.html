@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>エアコン工事 概算見積作成ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+        .btn-disabled { cursor: not-allowed; opacity: 0.6; filter: grayscale(1); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 p-2 md:p-8">
+
+<div id="app" v-cloak>
+
+<!-- 制作元公式バナー -->
+<div class="max-w-4xl mx-auto mb-2 text-right">
+    <div class="inline-flex flex-col items-end space-y-1">
+        <div class="inline-flex items-center bg-white border border-blue-100 px-3 py-1 rounded-full shadow-sm text-[10px] md:text-xs text-gray-600">
+            <svg class="w-3 h-3 mr-1 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+            <span class="font-bold">{{ texts.company_banner || '株式会社アイテック 公式制作ツール' }}</span>
+        </div>
+        <!-- Github Pages等に置くため、GAS特有の警告文の注釈は削除しました -->
+    </div>
+</div>
+
+<div class="max-w-4xl mx-auto bg-white shadow-xl rounded-2xl overflow-hidden">
+    
+    <!-- ヘッダー -->
+    <div class="bg-blue-600 text-white p-8 text-center">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">{{ texts.header_title || 'エアコン工事 概算見積ツール' }}</h1>
+        <p class="mt-2 text-blue-100 opacity-90 text-sm md:text-base">{{ texts.header_desc || '条件を選ぶだけで、その場で概算費用を算出します。' }}</p>
+    </div>
+
+    <!-- 送信完了画面 -->
+    <div v-if="submitComplete" class="p-10 md:p-16 text-center">
+        <div class="mb-6 flex justify-center">
+            <div class="bg-green-100 p-6 rounded-full shadow-inner">
+                <svg class="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+        </div>
+        <h2 class="text-3xl font-bold text-gray-800 mb-6">送信が完了いたしました！</h2>
+        <div class="text-gray-600 space-y-4 mb-12 leading-relaxed text-left max-w-lg mx-auto bg-gray-50 p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <p class="font-bold text-gray-800">お問い合わせいただき、誠にありがとうございます。</p>
+            <p>ご入力いただいた内容を確認し、担当者より折り返しメールまたはお電話にてご連絡を差し上げます。</p>
+            <p class="text-sm border-t pt-4 text-gray-500 italic">※システムより自動返信メールを送信しました。届いていない場合は、迷惑メールフォルダをご確認いただくか、お手数ですが直接お電話にてお問い合わせください。</p>
+        </div>
+        
+        <p class="text-gray-500 font-bold bg-white border border-gray-200 inline-block px-8 py-3 rounded-xl shadow-sm">
+            この画面は閉じていただいて構いません。
+        </p>
+    </div>
+
+    <!-- メイン入力エリア -->
+    <div v-else class="p-6 md:p-10">
+        <!-- 台数選択 -->
+        <div class="mb-10 bg-blue-50 p-8 rounded-2xl border border-blue-100 shadow-sm">
+            <label class="block font-bold text-xl mb-4 text-blue-900">{{ texts.q0_text || 'Q0. 工事するエアコンは何台ですか？' }}</label>
+            <select v-model="machineCount" @change="updateMachineCount" class="w-full md:w-64 p-4 border-2 border-blue-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-xl font-bold bg-white">
+                <option v-for="n in 8" :key="n" :value="n">{{ n }}台</option>
+            </select>
+        </div>
+
+        <!-- 質問カードのループ -->
+        <div v-for="(machine, index) in machines" :key="index" class="mb-12 border border-gray-200 rounded-3xl overflow-hidden shadow-sm bg-white">
+            <div class="bg-gray-50 p-5 font-bold border-b text-gray-700 flex items-center">
+                <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm shadow-sm">{{ index + 1 }}</span>
+                {{ index + 1 }}台目のエアコン設定
+            </div>
+            <div class="p-6 md:p-8 space-y-10">
+                
+                <!-- 動的に生成される質問リスト -->
+                <div v-for="q in questions" :key="q.id">
+                    <p class="font-bold mb-4 text-gray-800 flex items-center"><span class="text-blue-600 mr-2">●</span>{{ q.text }}</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label v-for="opt in q.options" :key="opt.label" 
+                               class="flex items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all font-bold text-lg min-h-[5rem]" 
+                               :class="machine.answers[q.id] === opt.value ? 'bg-blue-600 border-blue-600 text-white shadow-xl scale-[1.03]' : 'bg-white border-gray-200 hover:border-blue-300 text-gray-600'">
+                            <input type="radio" v-model="machine.answers[q.id]" :value="opt.value" class="hidden"> {{opt.label}}
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 見積結果エリア -->
+        <div v-if="isAllAnswered" class="mt-14">
+            <div v-if="isLoading" class="bg-gray-100 p-12 rounded-3xl text-center border-2 border-dashed border-gray-300">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <p class="font-bold text-gray-500">料金計算データを取得中...</p>
+            </div>
+            
+            <div v-else class="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 text-white p-10 md:p-14 rounded-[3rem] text-center shadow-2xl">
+                <p class="text-blue-100 font-bold mb-2 uppercase tracking-widest text-sm">Estimated Total Price</p>
+                <h2 class="text-2xl font-bold mb-4">現在の概算お見積り金額</h2>
+                <div class="text-6xl md:text-7xl font-black my-6 tabular-nums drop-shadow-md">
+                    {{ formattedTotalPrice }}<span class="text-2xl ml-2 font-bold opacity-80">円(税込)</span>
+                </div>
+                <p class="text-sm text-blue-100 mb-10 opacity-80">※設置環境の確認後、正式なお見積りをご提示いたします。</p>
+                
+                <button v-if="!showForm" @click="showForm = true" class="bg-white text-blue-700 font-black px-16 py-6 rounded-full text-2xl shadow-2xl hover:bg-blue-50 hover:scale-105 active:scale-95 transition-all">
+                    {{ texts.submit_btn || 'この内容で正式な見積もりを依頼する' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- お名前・連絡先入力フォーム -->
+        <div v-if="showForm" class="mt-14 bg-white p-8 md:p-12 rounded-[2.5rem] border-4 border-blue-50 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+            <h3 class="text-2xl md:text-3xl font-bold mb-8 flex items-center text-gray-800">
+                <svg class="w-8 h-8 mr-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path></svg>
+                お客様情報をご入力ください
+            </h3>
+            <form @submit.prevent="submitOrder" class="space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-black text-gray-500 ml-1">お名前（必須）</label>
+                        <input type="text" v-model="form.name" required placeholder="例：山田 太郎" class="w-full p-5 border-2 border-gray-100 rounded-2xl bg-gray-50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-lg">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-black text-gray-500 ml-1">メールアドレス（必須）</label>
+                        <input type="email" v-model="form.email" required placeholder="例：example@mail.com" class="w-full p-5 border-2 border-gray-100 rounded-2xl bg-gray-50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-lg">
+                    </div>
+                    <div class="md:col-span-2 space-y-2">
+                        <label class="block text-sm font-black text-gray-500 ml-1">お電話番号（必須）</label>
+                        <input type="tel" v-model="form.phone" required placeholder="例：090-1234-5678" class="w-full p-5 border-2 border-gray-100 rounded-2xl bg-gray-50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all text-lg">
+                    </div>
+                </div>
+                
+                <div class="pt-6">
+                    <button type="submit" 
+                            :disabled="isSubmitting" 
+                            class="w-full font-black py-6 rounded-full text-2xl shadow-2xl transition-all flex items-center justify-center space-x-4"
+                            :class="isSubmitting ? 'bg-gray-400 text-white btn-disabled' : 'bg-green-600 hover:bg-green-700 text-white hover:scale-[1.02] shadow-green-200'">
+                        <span v-if="isSubmitting" class="animate-spin rounded-full h-8 w-8 border-4 border-white border-t-transparent"></span>
+                        <span>{{ isSubmitting ? '送信しています...' : '上記内容で送信を確定する' }}</span>
+                    </button>
+                    <p class="text-center text-sm text-gray-400 mt-6 font-medium italic">※ボタンを押すと即時送信されます。内容にお間違いがないかご確認ください。</p>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+</div>
+
+<script>
+// ★★★ 事前準備: 新しくデプロイしたGASのウェブアプリURLをここに貼り付けてください ★★★
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzb-bGa7LyGTLX0FZ4EgDfnlVaXXvhQxIDIP6t6xhY7XiMzF8BthY4rJ7Sbxwe6CzLYoQ/exec"; 
+
+const { createApp, ref, computed, reactive, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const isLoading = ref(true);
+        const texts = ref({});
+        const questions = ref([]);
+        const machineCount = ref(1);
+        const machines = ref([{ answers: {} }]);
+        const showForm = ref(false);
+        const isSubmitting = ref(false);
+        const submitComplete = ref(false);
+        const form = reactive({ name:'', email:'', phone:'' });
+
+        onMounted(async () => {
+            // URLがセットされていない場合はローカルテスト用のダミーデータを表示
+            if (GAS_API_URL === "ここに新しいデプロイのURLを貼り付けます" || GAS_API_URL === "") {
+                console.warn("GAS_API_URLが設定されていません。ダミーデータを読み込みます。");
+                setTimeout(() => {
+                    texts.value = { app_title: "【テスト動作中】概算見積ツール" }; 
+                    questions.value = [
+                        { id: "q1", text: "工事の種類は？", options: [{label: "新規取付", value: "新規取付", price: 15000}, {label: "取外のみ", value: "取外のみ", price: 5000}, {label: "取外+新規", value: "取外+新規", price: 19000}] },
+                        { id: "q2", text: "設置階の条件は？", options: [{label: "同じ階", value: "同じ階", price: 0}, {label: "違う階", value: "違う階", price: 5000}, {label: "2階以上差", value: "2階以上差", price: 10000}] },
+                        { id: "q3", text: "配管の設置方法は？", options: [{label: "露出配管", value: "露出配管", price: 0}, {label: "隠蔽配管", value: "隠蔽配管", price: 8000}] }
+                    ];
+                    machines.value = [{ answers: { q1:'', q2:'', q3:'' } }];
+                    isLoading.value = false;
+                }, 1000);
+                return;
+            }
+
+            // Github Pages から GAS の doGet を呼び出してデータを取得
+            try {
+                const response = await fetch(GAS_API_URL);
+                if (!response.ok) throw new Error("Network response was not ok");
+                const data = await response.json();
+                
+                texts.value = data.texts || {};
+                questions.value = data.questions || [];
+                
+                machines.value = [{ answers: {} }];
+                questions.value.forEach(q => machines.value[0].answers[q.id] = '');
+
+                if (texts.value.app_title) {
+                    document.title = texts.value.app_title;
+                }
+                isLoading.value = false;
+            } catch (err) {
+                console.error("GASからのデータ取得に失敗しました:", err);
+                alert("データの読み込みに失敗しました。時間をおいて再読み込みしてください。");
+                isLoading.value = false;
+            }
+        });
+
+        const updateMachineCount = () => {
+            const count = parseInt(machineCount.value);
+            while(machines.value.length < count) {
+                const newMachine = { answers: {} };
+                questions.value.forEach(q => newMachine.answers[q.id] = '');
+                machines.value.push(newMachine);
+            }
+            while(machines.value.length > count) machines.value.pop();
+        };
+
+        const isAllAnswered = computed(() => {
+            if (!questions.value || questions.value.length === 0) return false;
+            return machines.value.every(m => {
+                return questions.value.every(q => m.answers[q.id] !== undefined && m.answers[q.id] !== '');
+            });
+        });
+
+        const totalPrice = computed(() => {
+            if (!questions.value) return 0;
+            let total = 0;
+            machines.value.forEach((m) => {
+                questions.value.forEach(q => {
+                    const ansVal = m.answers[q.id];
+                    const opt = q.options.find(o => o.value === ansVal);
+                    if (opt && opt.price) {
+                        total += Number(opt.price);
+                    }
+                });
+            });
+            return total;
+        });
+
+        const formattedTotalPrice = computed(() => {
+            return totalPrice.value.toLocaleString();
+        });
+
+        const submitOrder = async () => {
+            isSubmitting.value = true;
+            
+            const formattedMachines = machines.value.map(m => {
+                let text = "";
+                questions.value.forEach(q => {
+                    const ansVal = m.answers[q.id];
+                    const opt = q.options.find(o => o.value === ansVal);
+                    text += `  - ${q.text}: ${opt ? opt.label : '未選択'}\n`;
+                });
+                return text.trimEnd();
+            });
+
+            const payload = {
+                customer: JSON.parse(JSON.stringify(form)),
+                machines: formattedMachines,
+                totalPrice: totalPrice.value
+            };
+
+            if (GAS_API_URL === "ここに新しいデプロイのURLを貼り付けます" || GAS_API_URL === "") {
+                 setTimeout(() => {
+                    isSubmitting.value = false;
+                    submitComplete.value = true;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 2000);
+                return;
+            }
+
+            // Github Pages から GAS の doPost へデータを送信
+            try {
+                const response = await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    // GASのCORS制約を回避するため、application/jsonではなくtext/plainで送信します
+                    headers: {
+                        'Content-Type': 'text/plain', 
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    isSubmitting.value = false;
+                    submitComplete.value = true;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    throw new Error(result.error || "Unknown error occurred");
+                }
+            } catch (err) {
+                isSubmitting.value = false;
+                alert("送信中にエラーが発生しました。\n詳細: " + err.message);
+                console.error("Submit Error:", err);
+            }
+        };
+
+        return { 
+            isLoading, texts, questions, machineCount, machines, showForm, form, 
+            isSubmitting, submitComplete, 
+            updateMachineCount, isAllAnswered, formattedTotalPrice, submitOrder
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

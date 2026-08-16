@@ -22,7 +22,6 @@
             <svg class="w-3 h-3 mr-1 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
             <span class="font-bold">{{ texts.company_banner || '株式会社アイテック 公式制作ツール' }}</span>
         </div>
-        <!-- Github Pages等に置くため、GAS特有の警告文の注釈は削除しました -->
     </div>
 </div>
 
@@ -73,9 +72,16 @@
             </div>
             <div class="p-6 md:p-8 space-y-10">
                 
-                <!-- 動的に生成される質問リスト -->
-                <div v-for="q in questions" :key="q.id">
-                    <p class="font-bold mb-4 text-gray-800 flex items-center"><span class="text-blue-600 mr-2">●</span>{{ q.text }}</p>
+                <!-- 動的に生成される質問リスト（未入力時の赤いハイライト判定を追加） -->
+                <div v-for="q in questions" :key="q.id" 
+                     class="p-4 md:p-6 -mx-4 md:-mx-6 rounded-2xl transition-colors duration-300"
+                     :class="showValidationErrors && !machine.answers[q.id] ? 'bg-red-50 border-2 border-red-300' : 'border-2 border-transparent'">
+                    <p class="font-bold mb-4 text-gray-800 flex items-center">
+                        <span :class="showValidationErrors && !machine.answers[q.id] ? 'text-red-500' : 'text-blue-600'" class="mr-2">●</span>
+                        {{ q.text }}
+                        <!-- 未入力ラベル -->
+                        <span v-if="showValidationErrors && !machine.answers[q.id]" class="ml-3 text-xs md:text-sm text-red-600 font-bold bg-white px-2 py-1 rounded border border-red-200 shadow-sm">※未入力</span>
+                    </p>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <label v-for="opt in q.options" :key="opt.label" 
                                class="flex items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all font-bold text-lg min-h-[5rem]" 
@@ -88,25 +94,42 @@
             </div>
         </div>
 
-        <!-- 見積結果エリア -->
-        <div v-if="isAllAnswered" class="mt-14">
+        <!-- 見積結果エリア＆計算ボタン -->
+        <div class="mt-14">
+            <!-- データロード中 -->
             <div v-if="isLoading" class="bg-gray-100 p-12 rounded-3xl text-center border-2 border-dashed border-gray-300">
                 <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
                 <p class="font-bold text-gray-500">料金計算データを取得中...</p>
             </div>
             
-            <div v-else class="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 text-white p-10 md:p-14 rounded-[3rem] text-center shadow-2xl">
-                <p class="text-blue-100 font-bold mb-2 uppercase tracking-widest text-sm">Estimated Total Price</p>
-                <h2 class="text-2xl font-bold mb-4">現在の概算お見積り金額</h2>
-                <div class="text-6xl md:text-7xl font-black my-6 tabular-nums drop-shadow-md">
-                    {{ formattedTotalPrice }}<span class="text-2xl ml-2 font-bold opacity-80">円(税込)</span>
+            <template v-else>
+                <!-- 計算ボタン（見積結果がまだ表示されていない時） -->
+                <div v-if="!isCalculated" class="text-center bg-gray-50 p-8 rounded-3xl border border-gray-200">
+                    <button @click="calculateEstimate" class="bg-blue-600 text-white font-black px-10 md:px-16 py-5 md:py-6 rounded-full text-xl md:text-2xl shadow-xl hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all">
+                        概算見積もりを計算する
+                    </button>
+                    <!-- エラーメッセージ -->
+                    <div v-if="showValidationErrors" class="mt-6">
+                        <p class="text-red-600 font-bold text-base md:text-lg bg-red-50 inline-block px-6 py-3 rounded-xl border border-red-200 shadow-sm">
+                            未入力の項目があります。赤くハイライトされた項目をご確認ください。
+                        </p>
+                    </div>
                 </div>
-                <p class="text-sm text-blue-100 mb-10 opacity-80">※設置環境の確認後、正式なお見積りをご提示いたします。</p>
-                
-                <button v-if="!showForm" @click="showForm = true" class="bg-white text-blue-700 font-black px-16 py-6 rounded-full text-2xl shadow-2xl hover:bg-blue-50 hover:scale-105 active:scale-95 transition-all">
-                    {{ texts.submit_btn || 'この内容で正式な見積もりを依頼する' }}
-                </button>
-            </div>
+
+                <!-- 計算結果 -->
+                <div v-if="isCalculated" class="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 text-white p-10 md:p-14 rounded-[3rem] text-center shadow-2xl transition-opacity duration-500">
+                    <p class="text-blue-100 font-bold mb-2 uppercase tracking-widest text-sm">Estimated Total Price</p>
+                    <h2 class="text-2xl font-bold mb-4">現在の概算お見積り金額</h2>
+                    <div class="text-6xl md:text-7xl font-black my-6 tabular-nums drop-shadow-md">
+                        {{ formattedTotalPrice }}<span class="text-2xl ml-2 font-bold opacity-80">円(税込)</span>
+                    </div>
+                    <p class="text-sm text-blue-100 mb-10 opacity-80">※設置環境の確認後、正式なお見積りをご提示いたします。</p>
+                    
+                    <button v-if="!showForm" @click="showForm = true" class="bg-white text-blue-700 font-black px-16 py-6 rounded-full text-2xl shadow-2xl hover:bg-blue-50 hover:scale-105 active:scale-95 transition-all">
+                        {{ texts.submit_btn || 'この内容で正式な見積もりを依頼する' }}
+                    </button>
+                </div>
+            </template>
         </div>
 
         <!-- お名前・連絡先入力フォーム -->
@@ -153,7 +176,8 @@
 // ★★★ 事前準備: 新しくデプロイしたGASのウェブアプリURLをここに貼り付けてください ★★★
 const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzb-bGa7LyGTLX0FZ4EgDfnlVaXXvhQxIDIP6t6xhY7XiMzF8BthY4rJ7Sbxwe6CzLYoQ/exec"; 
 
-const { createApp, ref, computed, reactive, onMounted } = Vue;
+// ★改修点: watchをインポートに追加しました
+const { createApp, ref, computed, reactive, onMounted, watch } = Vue;
 
 createApp({
     setup() {
@@ -166,6 +190,10 @@ createApp({
         const isSubmitting = ref(false);
         const submitComplete = ref(false);
         const form = reactive({ name:'', email:'', phone:'' });
+
+        // ★改修点: エラー表示状態と、計算結果表示状態を管理する変数を追加しました
+        const showValidationErrors = ref(false);
+        const isCalculated = ref(false);
 
         onMounted(async () => {
             // URLがセットされていない場合はローカルテスト用のダミーデータを表示
@@ -224,6 +252,30 @@ createApp({
             });
         });
 
+        // ★改修点: 回答状況を監視し、未入力になったら結果エリアを隠す等の処理を行います
+        watch(isAllAnswered, (newVal) => {
+            if (!newVal) {
+                // 台数を増やしたなどで未入力状態に戻った場合は、計算結果を隠す
+                isCalculated.value = false;
+            } else if (showValidationErrors.value) {
+                // 未入力エラーが出ている状態で、ユーザーが全て入力した場合は自動的に結果を表示させる親切設計
+                showValidationErrors.value = false;
+                isCalculated.value = true;
+            }
+        });
+
+        // ★改修点: 計算ボタンが押された時の処理を追加しました
+        const calculateEstimate = () => {
+            if (isAllAnswered.value) {
+                // 全て入力されていれば、エラー表示を消して計算結果を表示
+                showValidationErrors.value = false;
+                isCalculated.value = true;
+            } else {
+                // 未入力があれば、エラー表示フラグを立ててUI上にアラートや赤枠を出す
+                showValidationErrors.value = true;
+            }
+        };
+
         const totalPrice = computed(() => {
             if (!questions.value) return 0;
             let total = 0;
@@ -275,7 +327,6 @@ createApp({
             try {
                 const response = await fetch(GAS_API_URL, {
                     method: 'POST',
-                    // GASのCORS制約を回避するため、application/jsonではなくtext/plainで送信します
                     headers: {
                         'Content-Type': 'text/plain', 
                     },
@@ -298,10 +349,12 @@ createApp({
             }
         };
 
+        // ★改修点: 新しく作成した変数と関数をreturnに追加しました
         return { 
             isLoading, texts, questions, machineCount, machines, showForm, form, 
             isSubmitting, submitComplete, 
-            updateMachineCount, isAllAnswered, formattedTotalPrice, submitOrder
+            updateMachineCount, isAllAnswered, formattedTotalPrice, submitOrder,
+            showValidationErrors, isCalculated, calculateEstimate
         };
     }
 }).mount('#app');

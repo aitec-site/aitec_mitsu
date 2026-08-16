@@ -66,14 +66,20 @@
 
         <!-- 質問カードのループ -->
         <div v-for="(machine, index) in machines" :key="index" class="mb-12 border border-gray-200 rounded-3xl overflow-hidden shadow-sm bg-white">
-            <div class="bg-gray-50 p-5 font-bold border-b text-gray-700 flex items-center">
-                <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm shadow-sm">{{ index + 1 }}</span>
-                {{ index + 1 }}台目のエアコン設定
+            <div class="bg-gray-50 p-5 font-bold border-b text-gray-700 flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm shadow-sm">{{ index + 1 }}</span>
+                    {{ index + 1 }}台目のエアコン設定
+                </div>
+                <!-- 「取外のみ」選択時のバッジ -->
+                <span v-if="isRemovalOnly(machine)" class="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full">
+                    取外工事（追加質問不要）
+                </span>
             </div>
             <div class="p-6 md:p-8 space-y-10">
                 
-                <!-- 動的に生成される質問リスト -->
-                <div v-for="q in questions" :key="q.id" 
+                <!-- 動的に生成される質問リスト（取外のみの場合はQ1のみ表示） -->
+                <div v-for="q in getVisibleQuestions(machine)" :key="q.id" 
                      class="p-4 md:p-6 -mx-4 md:-mx-6 rounded-2xl transition-colors duration-300"
                      :class="showValidationErrors && !machine.answers[q.id] ? 'bg-red-50 border-2 border-red-300' : 'border-2 border-transparent'">
                     <p class="font-bold mb-4 text-gray-800 flex items-center">
@@ -83,7 +89,7 @@
                     </p>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <label v-for="opt in q.options" :key="opt.label" 
-                               class="flex items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all font-bold text-lg min-h-[5rem]" 
+                               class="flex items-center justify-center p-5 border-2 rounded-2xl cursor-pointer transition-all font-bold text-lg min-h-[5rem] text-center" 
                                :class="machine.answers[q.id] === opt.value ? 'bg-blue-600 border-blue-600 text-white shadow-xl scale-[1.03]' : 'bg-white border-gray-200 hover:border-blue-300 text-gray-600'">
                             <input type="radio" v-model="machine.answers[q.id]" :value="opt.value" class="hidden"> {{opt.label}}
                         </label>
@@ -154,7 +160,7 @@
                     </div>
                 </div>
 
-                <!-- ★追加：住所入力エリア -->
+                <!-- 住所入力エリア -->
                 <div class="border-t-2 border-gray-100 pt-8 mt-4">
                     <h4 class="text-lg font-bold text-gray-700 mb-6 flex items-center">
                         <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -210,7 +216,7 @@
 
 <script>
 // ★★★ 事前準備: 新しくデプロイしたGASのウェブアプリURLをここに貼り付けてください ★★★
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwElSBEd2wLvcUsCiHA8DyuLMT0cVFobUGPbdSnCvS2RxHIfeeqtI1SE9ARnYWvm3HY3Q/exec"; 
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzb-bGa7LyGTLX0FZ4EgDfnlVaXXvhQxIDIP6t6xhY7XiMzF8BthY4rJ7Sbxwe6CzLYoQ/exec"; 
 
 const { createApp, ref, computed, reactive, onMounted, watch } = Vue;
 
@@ -225,7 +231,6 @@ createApp({
         const isSubmitting = ref(false);
         const submitComplete = ref(false);
         
-        // ★修正点：フォームデータに住所項目を追加
         const form = reactive({ name:'', email:'', phone:'', zipcode:'', pref:'', city:'', address:'' });
         const isSearchingAddress = ref(false);
 
@@ -239,8 +244,8 @@ createApp({
                     texts.value = { app_title: "【テスト動作中】概算見積ツール" }; 
                     questions.value = [
                         { id: "q1", text: "工事の種類は？", options: [{label: "新規取付", value: "新規取付", price: 15000}, {label: "取外のみ", value: "取外のみ", price: 5000}, {label: "取外+新規", value: "取外+新規", price: 19000}] },
-                        { id: "q2", text: "設置階の条件は？", options: [{label: "同じ階", value: "同じ階", price: 0}, {label: "違う階", value: "違う階", price: 5000}, {label: "2階以上差", value: "2階以上差", price: 10000}] },
-                        { id: "q3", text: "配管の設置方法は？", options: [{label: "露出配管", value: "露出配管", price: 0}, {label: "隠蔽配管", value: "隠蔽配管", price: 8000}] }
+                        { id: "q2", text: "設置階の条件は？", options: [{label: "同じ階", value: "同じ階", price: 0}, {label: "違う階", value: "違う階", price: 5000}, {label: "2階以上差", value: "2階以上差", price: 10000}, {label: "わからない（現地確認希望）", value: "わからない（現地確認希望）", price: 0}] },
+                        { id: "q3", text: "配管の設置方法は？", options: [{label: "露出配管", value: "露出配管", price: 0}, {label: "隠蔽配管", value: "隠蔽配管", price: 8000}, {label: "わからない（現地確認希望）", value: "わからない（現地確認希望）", price: 0}] }
                     ];
                     machines.value = [{ answers: { q1:'', q2:'', q3:'' } }];
                     isLoading.value = false;
@@ -280,10 +285,28 @@ createApp({
             while(machines.value.length > count) machines.value.pop();
         };
 
+        // ★追加: 特定の台数が「取外のみ」かどうかを判定
+        const isRemovalOnly = (machine) => {
+            if (!questions.value || questions.value.length === 0) return false;
+            const q1Id = questions.value[0].id;
+            return machine.answers[q1Id] === '取外のみ';
+        };
+
+        // ★追加: 表示すべき質問リストを取得（取外のみの場合はQ1のみ）
+        const getVisibleQuestions = (machine) => {
+            if (!questions.value || questions.value.length === 0) return [];
+            if (isRemovalOnly(machine)) {
+                return [questions.value[0]]; // Q1のみ返す
+            }
+            return questions.value;
+        };
+
+        // ★修正: 表示されている質問のみすべて回答されているかチェック
         const isAllAnswered = computed(() => {
             if (!questions.value || questions.value.length === 0) return false;
             return machines.value.every(m => {
-                return questions.value.every(q => m.answers[q.id] !== undefined && m.answers[q.id] !== '');
+                const visibleQs = getVisibleQuestions(m);
+                return visibleQs.every(q => m.answers[q.id] !== undefined && m.answers[q.id] !== '');
             });
         });
 
@@ -305,13 +328,11 @@ createApp({
             }
         };
 
-        // ★追加：郵便番号から住所を検索する処理
         const searchAddress = async () => {
             if (!form.zipcode) {
                 alert('郵便番号を入力してください');
                 return;
             }
-            // ハイフンを除去
             const zip = form.zipcode.replace(/-/g, '');
             if (zip.length !== 7) {
                 alert('郵便番号は7桁の数字で入力してください');
@@ -320,14 +341,13 @@ createApp({
 
             isSearchingAddress.value = true;
             try {
-                // 無料の郵便番号検索API (zipcloud) を利用
                 const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zip}`);
                 const data = await response.json();
                 
                 if (data.status === 200 && data.results) {
                     const result = data.results[0];
                     form.pref = result.address1;
-                    form.city = result.address2 + result.address3; // 市区町村と町域を結合
+                    form.city = result.address2 + result.address3;
                 } else {
                     alert('該当する住所が見つかりませんでした。お手数ですが手入力をお願いします。');
                 }
@@ -339,11 +359,13 @@ createApp({
             }
         };
 
+        // ★修正: 表示されている質問のみの合計金額を計算
         const totalPrice = computed(() => {
             if (!questions.value) return 0;
             let total = 0;
             machines.value.forEach((m) => {
-                questions.value.forEach(q => {
+                const visibleQs = getVisibleQuestions(m);
+                visibleQs.forEach(q => {
                     const ansVal = m.answers[q.id];
                     const opt = q.options.find(o => o.value === ansVal);
                     if (opt && opt.price) {
@@ -358,16 +380,21 @@ createApp({
             return totalPrice.value.toLocaleString();
         });
 
+        // ★修正: メールの送信テキスト生成時に「取外のみ」の注記を追加
         const submitOrder = async () => {
             isSubmitting.value = true;
             
             const formattedMachines = machines.value.map(m => {
                 let text = "";
-                questions.value.forEach(q => {
+                const visibleQs = getVisibleQuestions(m);
+                visibleQs.forEach(q => {
                     const ansVal = m.answers[q.id];
                     const opt = q.options.find(o => o.value === ansVal);
                     text += `  - ${q.text}: ${opt ? opt.label : '未選択'}\n`;
                 });
+                if (isRemovalOnly(m)) {
+                    text += `  - (取外のみ工事のため追加質問はスキップされました)\n`;
+                }
                 return text.trimEnd();
             });
 
@@ -416,7 +443,8 @@ createApp({
             isSubmitting, submitComplete, 
             updateMachineCount, isAllAnswered, formattedTotalPrice, submitOrder,
             showValidationErrors, isCalculated, calculateEstimate,
-            isSearchingAddress, searchAddress // ★追加
+            isSearchingAddress, searchAddress,
+            isRemovalOnly, getVisibleQuestions // ★追加
         };
     }
 }).mount('#app');
